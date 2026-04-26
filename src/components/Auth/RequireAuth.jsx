@@ -2,12 +2,16 @@ import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 export default function RequireAuth({ children }) {
-  const token = localStorage.getItem("token");
-  const location = useLocation();
+    const location = useLocation();
 
-  if (!token) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
-  }
+    // Check BOTH storages because your login supports "keep me signed in"
+    const token =
+        localStorage.getItem("authToken") ||
+        sessionStorage.getItem("authToken");
 
-  return children;
+    if (!token) {
+        return <Navigate to="/auth" state={{ from: location }} replace />;
+    }
+
+    return children;
 }
