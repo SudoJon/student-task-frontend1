@@ -14,6 +14,7 @@ const pool = new CognitoUserPool({
   ClientId: cognitoConfig.clientId,
 });
 
+<<<<<<< HEAD
 /* === Helper: mask email for display === */
 function maskEmail(email) {
   if (!email) return "";
@@ -28,6 +29,13 @@ export default function Auth() {
   const navigate = useNavigate();
 
   /* === Modes for slider === */
+=======
+export default function Auth() {
+  const { globalLoading, setGlobalLoading } = useLoading();
+  const navigate = useNavigate();
+
+  /* === Modes for slider (verify-account removed) === */
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   const [mode, setMode] = useState("login");
   const panels = [
     "login",
@@ -35,7 +43,10 @@ export default function Auth() {
     "forgot-email",
     "forgot-code",
     "forgot-reset",
+<<<<<<< HEAD
     "verify-account",
+=======
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   ];
 
   /* === Login State === */
@@ -48,10 +59,13 @@ export default function Auth() {
   const [regPassword, setRegPassword] = useState("");
   const [regConfirm, setRegConfirm] = useState("");
 
+<<<<<<< HEAD
   /* === Verify Account State === */
   const [confirmEmail, setConfirmEmail] = useState("");
   const [confirmCode, setConfirmCode] = useState("");
 
+=======
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   /* === Forgot Password State === */
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
@@ -86,6 +100,10 @@ export default function Auth() {
     width: `${panelWidth * panels.length}px`,
   };
 
+<<<<<<< HEAD
+=======
+  /* ⭐ Detect redirect from your external Verify page */
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("verified") === "true") {
@@ -203,6 +221,7 @@ export default function Auth() {
     });
   };
 
+<<<<<<< HEAD
 const handleVerifyAccount = () => {
   setLoading(true);
   setStatus("");
@@ -275,6 +294,8 @@ const handleVerifyAccount = () => {
     });
   };
 
+=======
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   const handleForgotSendCode = () => {
     setLoading(true);
     setStatus("");
@@ -379,6 +400,10 @@ const handleVerifyAccount = () => {
         <div ref={cardRef} style={styles.card}>
           <div style={styles.sliderViewport}>
             <div style={sliderStyle}>
+<<<<<<< HEAD
+=======
+              
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
               {/* === LOGIN PANEL === */}
               <div style={{ ...styles.panelContainer, width: panelWidth }}>
                 <div style={styles.title}>Sign in with Bucket Lyst</div>
@@ -404,15 +429,24 @@ const handleVerifyAccount = () => {
                 </div>
               </div>
 
+<<<<<<< HEAD
               {/* === REGISTER PANEL (REORDERED) === */}
+=======
+              {/* === REGISTER PANEL === */}
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
               <div style={{ ...styles.panelContainer, width: panelWidth }}>
                 <div style={styles.title}>Create Account</div>
                 <input style={styles.input} type="email" placeholder="Email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
                 <input style={styles.input} type="password" placeholder="Password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
+<<<<<<< HEAD
                 {/* ⭐ Confirm password now directly below Password */}
                 <input style={styles.input} type="password" placeholder="Confirm password" value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)} />
                 
                 {/* ⭐ Strength criteria now at the bottom */}
+=======
+                <input style={styles.input} type="password" placeholder="Confirm password" value={regConfirm} onChange={(e) => setRegConfirm(e.target.value)} />
+                
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
                 {renderPasswordRequirements(regStrength)}
 
                 <button style={styles.button} onClick={handleRegister} disabled={loading}>{loading ? "Creating account..." : "Create Account"}</button>
@@ -421,6 +455,7 @@ const handleVerifyAccount = () => {
                 </div>
               </div>
 
+<<<<<<< HEAD
               {/* === VERIFY ACCOUNT PANEL === */}
               <div style={{ ...styles.panelContainer, width: panelWidth }}>
                 <div style={styles.title}>Check Your Email</div>
@@ -429,10 +464,19 @@ const handleVerifyAccount = () => {
                 <button style={styles.button} onClick={handleVerifyAccount} disabled={loading}>{loading ? "Verifying..." : "Verify account"}</button>
                 <div style={styles.linksContainer}>
                   <div style={styles.switchLink} onClick={handleResendVerification}>Didn't get a code? Resend</div>
+=======
+              {/* === FORGOT EMAIL PANEL === */}
+              <div style={{ ...styles.panelContainer, width: panelWidth }}>
+                <div style={styles.title}>Reset Password</div>
+                <input style={styles.input} type="email" placeholder="Enter your email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} />
+                <button style={styles.button} onClick={handleForgotSendCode} disabled={loading}>{loading ? "Sending code..." : "Send code"}</button>
+                <div style={styles.linksContainer}>
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
                   <div style={styles.switchLink} onClick={() => { setMode("login"); setStatus(""); }}>Back to Sign In</div>
                 </div>
               </div>
 
+<<<<<<< HEAD
               {/* === FORGOT EMAIL PANEL === */}
               <div style={{ ...styles.panelContainer, width: panelWidth }}>
                 <div style={styles.title}>Reset Password</div>
@@ -460,6 +504,23 @@ const handleVerifyAccount = () => {
                 {/* ⭐ Strength criteria at the bottom */}
                 {renderPasswordRequirements(resetStrength)}
 
+=======
+              {/* === FORGOT CODE PANEL === */}
+              <div style={{ ...styles.panelContainer, width: panelWidth }}>
+                <div style={styles.title}>Enter Verification Code</div>
+                <input style={styles.input} type="text" placeholder="Verification code" value={forgotCode} onChange={(e) => setForgotCode(e.target.value)} />
+                <button style={styles.button} onClick={() => { if (!forgotCode) { setStatus("Please enter the code.", true); return; } setStatus(""); setMode("forgot-reset"); }}>Continue</button>
+              </div>
+
+              {/* === FORGOT RESET PANEL === */}
+              <div style={{ ...styles.panelContainer, width: panelWidth }}>
+                <div style={styles.title}>Create New Password</div>
+                <input style={styles.input} type="password" placeholder="New password" value={forgotNewPassword} onChange={(e) => setForgotNewPassword(e.target.value)} />
+                <input style={styles.input} type="password" placeholder="Confirm new password" value={forgotConfirmPassword} onChange={(e) => setForgotConfirmPassword(e.target.value)} />
+                
+                {renderPasswordRequirements(resetStrength)}
+
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
                 <button style={styles.button} onClick={handleForgotReset} disabled={loading}>{loading ? "Saving..." : "Save new password"}</button>
               </div>
             </div>
@@ -490,7 +551,12 @@ const handleVerifyAccount = () => {
 
 const styles = {
   page: {
+<<<<<<< HEAD
     minHeight: "100vh",
+=======
+    height: "100vh",     // ⭐ Changed from minHeight
+    overflow: "hidden",  // ⭐ Added to hide outer scrollbar
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
     display: "flex",
     flexDirection: "column",
     background: "#f5f5f7",
@@ -500,7 +566,18 @@ const styles = {
   header: { padding: "24px 40px", display: "flex", justifyContent: "flex-start" },
   brand: { display: "flex", alignItems: "center", gap: 8 },
   siteName: { fontSize: 20, fontWeight: 600, color: "#1d1d1f" },
+<<<<<<< HEAD
   centerArea: { flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" },
+=======
+  centerArea: { 
+    flex: 1, 
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center", 
+    padding: "20px",
+    overflow: "hidden"  // ⭐ Added to prevent internal scrolling
+  },
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
   card: {
     width: 520, // iCloud size
     minHeight: 480,

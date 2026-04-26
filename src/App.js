@@ -13,19 +13,30 @@ import HighPriority from "./pages/Tasks/HighPriority";
 import Completed from "./pages/Tasks/Completed";
 import NewNote from "./pages/Notes/NewNote";
 import StudyPlaylists from "./pages/Music/StudyPlaylists";
+<<<<<<< HEAD
 import Calendar from "./pages/Calendar/Calendar";
+=======
+import Calendar from "./pages/Calendar/Calendar";   // ⭐ Added from partner
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
 
 import Auth from "./pages/LoginRegister/Auth";
+import VerifyAccount from "./pages/VerifyAccount/VerifyAccount";
+import VerifySuccess from "./pages/VerifySuccess/VerifySuccess";
+
+import { LoadingProvider } from "./context/LoadingContext";
 
 function App() {
   return (
-    <Router>
+    <LoadingProvider>
+      <Router>
+        <Routes>
 
-      {/* Public auth route (no layout, no sidebar) */}
-      <Routes>
-        <Route path="/auth" element={<Auth />} />
-      </Routes>
+          {/* Public routes */}
+          <Route path="/auth" element={<Auth />} />
+          <Route path="/verify" element={<VerifyAccount />} />
+          <Route path="/verify-success" element={<VerifySuccess />} />
 
+<<<<<<< HEAD
       {/* Protected app shell — everything inside Layout requires auth */}
       <RequireAuth>
         <Layout>
@@ -46,8 +57,41 @@ function App() {
           </Routes>
         </Layout>
       </RequireAuth>
+=======
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <RequireAuth>
+                <Layout />
+              </RequireAuth>
+            }
+          >
+            <Route path="home" element={<h1>Welcome to Bucket Lyst</h1>} />
+>>>>>>> 046f665 (Official Login + Register, verify removal, updated auth flow, layout loading fix, merged with calendar.)
 
-    </Router>
+            <Route path="tasks" element={<Tasks />} />
+            <Route path="tasks/today" element={<Today />} />
+            <Route path="tasks/week" element={<ThisWeek />} />
+            <Route path="tasks/high" element={<HighPriority />} />
+            <Route path="tasks/completed" element={<Completed />} />
+
+            <Route path="notes" element={<Notes />} />
+            <Route path="notes/new" element={<NewNote />} />
+
+            <Route path="assistant" element={<Assistant />} />
+
+            <Route path="music" element={<Music />} />
+            <Route path="music/study" element={<StudyPlaylists />} />
+
+            <Route path="calendar" element={<Calendar />} /> {/* ⭐ Added from partner */}
+
+            <Route path="settings" element={<Settings />} />
+          </Route>
+
+        </Routes>
+      </Router>
+    </LoadingProvider>
   );
 }
 
