@@ -1,364 +1,331 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+/* ============================================================
+   AUTH.JSX — PART 1
+   Paste this at the TOP of your file.
+   DO NOT add the styles object yet.
+   PART 2 will contain the styles + closing braces.
+   ============================================================ */
+
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   CognitoUserPool,
   CognitoUser,
   AuthenticationDetails,
 } from "amazon-cognito-identity-js";
 import { cognitoConfig } from "../../cognitoConfig";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
+/* === Cognito Setup === */
 const pool = new CognitoUserPool({
   UserPoolId: cognitoConfig.userPoolId,
   ClientId: cognitoConfig.clientId,
 });
 
+/* ============================================================
+   MAIN AUTH COMPONENT
+   ============================================================ */
 export default function Auth() {
-  // modes
-  const [mode, setMode] = useState("login"); // login | forgot-email | forgot-code | forgot-reset | register
+  /* === Modes for slider === */
+  const [mode, setMode] = useState("login"); 
+  const panels = ["login", "register", "forgot-email", "forgot-code", "forgot-reset"];
 
-  // login state
+  /* === Login State === */
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [loginError, setLoginError] = useState(false);
 
-  // forgot state
+  /* === Register State === */
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regConfirm, setRegConfirm] = useState("");
+
+  /* === Forgot Password State === */
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotConfirmPassword, setForgotConfirmPassword] = useState("");
-  const [forgotError, setForgotError] = useState(false);
 
-  // register state
-  const [regEmail, setRegEmail] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regConfirm, setRegConfirm] = useState("");
-  const [regError, setRegError] = useState(false);
-
-  // UI
+  /* === UI State === */
   const [message, setMessage] = useState("");
-  const [messageNeutral, setMessageNeutral] = useState(false);
+  const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [keepSignedIn, setKeepSignedIn] = useState(true);
 
-  const navigate = useNavigate();
-  const location = useLocation();
-  const from = location.state?.from?.pathname || "/home";
-
-  // slider measurement and refs
+  /* === Slider Logic === */
   const cardRef = useRef(null);
   const [panelWidth, setPanelWidth] = useState(0);
-  const panelCount = 5; // login, forgot-email, forgot-code, forgot-reset, register
+  const navigate = useNavigate();
 
-  // password strength checks
-  const regStrength = useMemo(() => {
-    return {
+  useEffect(() => {
+    if (cardRef.current) {
+      setPanelWidth(cardRef.current.offsetWidth);
+    }
+    const handleResize = () => {
+      if (cardRef.current) setPanelWidth(cardRef.current.offsetWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const currentIndex = panels.indexOf(mode);
+  const sliderStyle = {
+    transform: `translateX(-${currentIndex * panelWidth}px)`,
+    transition: "transform 0.4s ease",
+    display: "flex",
+    width: `${panelWidth * panels.length}px`,
+  };
+
+  /* === Password Strength Checkers === */
+  const regStrength = useMemo(
+    () => ({
       length: regPassword.length >= 8,
       number: /\d/.test(regPassword),
       uppercase: /[A-Z]/.test(regPassword),
       special: /[!@#$%^&*(),.?":{}|<>]/.test(regPassword),
-    };
-  }, [regPassword]);
+    }),
+    [regPassword]
+  );
   const regAllStrong = Object.values(regStrength).every(Boolean);
 
-  const resetStrength = useMemo(() => {
-    return {
+  const resetStrength = useMemo(
+    () => ({
       length: forgotNewPassword.length >= 8,
       number: /\d/.test(forgotNewPassword),
       uppercase: /[A-Z]/.test(forgotNewPassword),
       special: /[!@#$%^&*(),.?":{}|<>]/.test(forgotNewPassword),
-    };
-  }, [forgotNewPassword]);
+    }),
+    [forgotNewPassword]
+  );
   const resetAllStrong = Object.values(resetStrength).every(Boolean);
 
-  // compute mode index
-  const modeIndex =
-    mode === "login"
-      ? 0
-      : mode === "forgot-email"
-      ? 1
-      : mode === "forgot-code"
-      ? 2
-      : mode === "forgot-reset"
-      ? 3
-      : 4;
-
-  // measure panel width using ResizeObserver for robust layout changes
-  useEffect(() => {
-    if (!cardRef.current) return;
-    const el = cardRef.current;
-
-    const measure = () => {
-      const w = el.clientWidth || 0;
-      setPanelWidth(Math.floor(w));
-    };
-
-    measure();
-
-    let ro;
-    if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver(() => {
-        measure();
-      });
-      ro.observe(el);
-    } else {
-      window.addEventListener("resize", measure);
-    }
-
-    return () => {
-      if (ro) ro.disconnect();
-      else window.removeEventListener("resize", measure);
-    };
-  }, []);
-
-  // re-measure after mode changes (microtask) to avoid timing races
-  useEffect(() => {
-    const id = setTimeout(() => {
-      if (!cardRef.current) return;
-      const w = cardRef.current.clientWidth || 0;
-      setPanelWidth(Math.floor(w));
-    }, 40);
-    return () => clearTimeout(id);
-  }, [mode]);
-
-  const inputBorder = (isError) =>
-    isError ? "1.6px solid #ef4444" : "1.5px solid #e5e7eb";
-
-  const emailIsValid = (value) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(value).toLowerCase());
+  /* === Helper to Set Status Messages === */
+  const setStatus = (msg, error = false) => {
+    setMessage(msg);
+    setIsError(error);
   };
 
-  /* ---------- AUTH ACTIONS ---------- */
-
+  /* ============================================================
+     LOGIN HANDLER
+     ============================================================ */
   const handleLogin = () => {
-    setMessage("");
-    setLoginError(false);
+    setLoading(true);
+    setStatus("");
 
     if (!loginEmail || !loginPassword) {
-      setMessage("Please enter email and password.");
-      setLoginError(true);
+      setStatus("Please enter email and password.", true);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const user = new CognitoUser({ Username: loginEmail, Pool: pool });
+    const user = new CognitoUser({
+      Username: loginEmail,
+      Pool: pool,
+    });
+
     const authDetails = new AuthenticationDetails({
       Username: loginEmail,
       Password: loginPassword,
     });
 
     user.authenticateUser(authDetails, {
-      onSuccess: (session) => {
-        const token = session.getIdToken().getJwtToken();
-        if (keepSignedIn) localStorage.setItem("token", token);
-        else sessionStorage.setItem("token", token);
+      onSuccess: () => {
+        setStatus("");
         setLoading(false);
-        navigate(from, { replace: true });
+        navigate("/home", { replace: true });
       },
       onFailure: (err) => {
+        setStatus(err.message || "Login failed.", true);
         setLoading(false);
-        setLoginError(true);
-        setMessage(err?.message || "Login failed. Check credentials.");
+      },
+      newPasswordRequired: () => {
+        setStatus("Additional steps required. Try resetting your password.", true);
+        setLoading(false);
       },
     });
   };
 
-  /* Forgot flow */
-  const sendForgotCode = () => {
-    setMessage("");
-    setForgotError(false);
-    setMessageNeutral(false);
+  /* ============================================================
+     REGISTER HANDLER
+     ============================================================ */
+  const handleRegister = () => {
+    setLoading(true);
+    setStatus("");
+
+    if (!regEmail || !regPassword || !regConfirm) {
+      setStatus("Please fill out all fields.", true);
+      setLoading(false);
+      return;
+    }
+
+    if (regPassword !== regConfirm) {
+      setStatus("Passwords do not match.", true);
+      setLoading(false);
+      return;
+    }
+
+    if (!regAllStrong) {
+      setStatus("Password does not meet all requirements.", true);
+      setLoading(false);
+      return;
+    }
+
+    pool.signUp(regEmail, regPassword, [], null, (err) => {
+      if (err) {
+        setStatus(err.message || "Error creating account.", true);
+        setLoading(false);
+        return;
+      }
+
+      // Auto-login after sign up
+      const user = new CognitoUser({
+        Username: regEmail,
+        Pool: pool,
+      });
+
+      const authDetails = new AuthenticationDetails({
+        Username: regEmail,
+        Password: regPassword,
+      });
+
+      user.authenticateUser(authDetails, {
+        onSuccess: () => {
+          setStatus("");
+          setLoading(false);
+          navigate("/home", { replace: true });
+        },
+        onFailure: () => {
+          setStatus("Account created, but login failed. Try signing in.", true);
+          setLoading(false);
+        },
+      });
+    });
+  };
+
+  /* ============================================================
+     FORGOT PASSWORD — SEND CODE
+     ============================================================ */
+  const handleForgotSendCode = () => {
+    setLoading(true);
+    setStatus("");
 
     if (!forgotEmail) {
-      setMessage("Please enter your email.");
-      setForgotError(true);
-      return;
-    }
-    if (!emailIsValid(forgotEmail)) {
-      setMessage("Please enter a valid email address.");
-      setForgotError(true);
+      setStatus("Please enter your email.", true);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const user = new CognitoUser({ Username: forgotEmail, Pool: pool });
+    const user = new CognitoUser({
+      Username: forgotEmail,
+      Pool: pool,
+    });
+
     user.forgotPassword({
-      onSuccess: () => {
-        setLoading(false);
-        setMessage("If the account exists, a verification code was sent.");
-        setMode("forgot-code");
-      },
+      onSuccess: () => {},
       onFailure: (err) => {
+        setStatus(err.message || "Error sending reset code.", true);
         setLoading(false);
-        setMessage(err?.message || "Could not send reset code.");
-        setForgotError(true);
       },
       inputVerificationCode: () => {
+        setStatus("Verification code sent. Check your email.");
         setLoading(false);
-        setMessage("Enter the verification code sent to your email.");
         setMode("forgot-code");
       },
     });
   };
 
-  const verifyForgotCodeAndContinue = () => {
-    setMessage("");
-    setForgotError(false);
-    setMessageNeutral(true);
-
-    if (!forgotCode) {
-      setMessage("Please enter the verification code.");
-      setForgotError(true);
-      setMessageNeutral(false);
-      return;
-    }
-    if (forgotCode.length < 4) {
-      setMessage("Verification code looks too short.");
-      setForgotError(true);
-      setMessageNeutral(false);
-      return;
-    }
-
-    // proceed to reset panel; authoritative verification happens on confirm
-    setMode("forgot-reset");
-  };
-
-  const confirmForgotPassword = () => {
-    setMessage("");
-    setForgotError(false);
+  /* ============================================================
+     FORGOT PASSWORD — RESET PASSWORD
+     ============================================================ */
+  const handleForgotReset = () => {
+    setLoading(true);
+    setStatus("");
 
     if (!forgotEmail || !forgotCode || !forgotNewPassword || !forgotConfirmPassword) {
-      setMessage("Please fill all fields to reset password.");
-      setForgotError(true);
-      return;
-    }
-    if (forgotNewPassword !== forgotConfirmPassword) {
-      setMessage("Passwords do not match.");
-      setForgotError(true);
-      return;
-    }
-    if (!resetAllStrong) {
-      setMessage("New password does not meet strength requirements.");
-      setForgotError(true);
+      setStatus("Please fill out all fields.", true);
+      setLoading(false);
       return;
     }
 
-    setLoading(true);
-    const user = new CognitoUser({ Username: forgotEmail, Pool: pool });
+    if (forgotNewPassword !== forgotConfirmPassword) {
+      setStatus("Passwords do not match.", true);
+      setLoading(false);
+      return;
+    }
+
+    if (!resetAllStrong) {
+      setStatus("Password does not meet all requirements.", true);
+      setLoading(false);
+      return;
+    }
+
+    const user = new CognitoUser({
+      Username: forgotEmail,
+      Pool: pool,
+    });
+
     user.confirmPassword(forgotCode, forgotNewPassword, {
       onSuccess: () => {
+        setStatus("Password reset successful. You can now log in.");
         setLoading(false);
-        setMessage("Password reset. You can now sign in with the new password.");
-        setForgotCode("");
-        setForgotNewPassword("");
-        setForgotConfirmPassword("");
         setMode("login");
         setLoginEmail(forgotEmail);
         setLoginPassword("");
       },
       onFailure: (err) => {
+        setStatus(err.message || "Error resetting password.", true);
         setLoading(false);
-        setMessage(err?.message || "Could not reset password. The code may be invalid.");
-        setForgotError(true);
       },
     });
   };
 
-  /* Register */
-  const handleRegister = () => {
-    setMessage("");
-    setRegError(false);
+  /* ============================================================
+     PASSWORD CRITERIA COMPONENT
+     ============================================================ */
+  const PasswordCriteria = ({ label, ok }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+      <div
+        style={{
+          width: 12,
+          height: 12,
+          borderRadius: 3,
+          background: ok ? "#10b981" : "#e5e7eb",
+          boxShadow: ok ? "0 0 6px rgba(16,185,129,0.18)" : "none",
+        }}
+      />
+      <div style={{ color: ok ? "#065f46" : "#6b7280", fontSize: 13 }}>{label}</div>
+    </div>
+  );
 
-    if (!regEmail || !regPassword || !regConfirm) {
-      setMessage("Please fill all fields.");
-      setRegError(true);
-      return;
-    }
-    if (!emailIsValid(regEmail)) {
-      setMessage("Please enter a valid email address.");
-      setRegError(true);
-      return;
-    }
-    if (regPassword !== regConfirm) {
-      setMessage("Passwords do not match.");
-      setRegError(true);
-      return;
-    }
-    if (!regAllStrong) {
-      setMessage("Password does not meet strength requirements.");
-      setRegError(true);
-      return;
-    }
+  const renderPasswordRequirements = (strength) => (
+    <div style={styles.criteria}>
+      <PasswordCriteria label="At least 8 characters" ok={strength.length} />
+      <PasswordCriteria label="Contains a number" ok={strength.number} />
+      <PasswordCriteria label="Uppercase letter" ok={strength.uppercase} />
+      <PasswordCriteria label="Special character" ok={strength.special} />
+    </div>
+  );
 
-    setLoading(true);
-    pool.signUp(regEmail, regPassword, [], null, (err) => {
-      setLoading(false);
-      if (err) {
-        setMessage(err.message || "Registration error");
-        setRegError(true);
-        return;
-      }
-      setMessage("Account created! Check your email to verify.");
-      setTimeout(() => setMode("login"), 1100);
-    });
-  };
-
-  const openForgotEmailPanel = () => {
-    setForgotEmail("");
-    setForgotCode("");
-    setForgotNewPassword("");
-    setForgotConfirmPassword("");
-    setForgotError(false);
-    setMessage("");
-    setMessageNeutral(false);
-    setMode("forgot-email");
-  };
-
-  const cancelToLogin = () => {
-    setMessage("");
-    setForgotError(false);
-    setMessageNeutral(false);
-    setMode("login");
-  };
-
-  // slider inline styles (use translate3d for crisp GPU transform)
-  const offset = -panelWidth * modeIndex;
-  const sliderStyle = {
-    width: panelWidth ? `${panelCount * panelWidth}px` : `${panelCount * 100}%`,
-    display: "flex",
-    transition: "transform 420ms cubic-bezier(.2,.9,.2,1)",
-    willChange: "transform",
-    transform: `translate3d(${offset}px, 0, 0)`,
-    boxSizing: "border-box",
-  };
-
-  const panelTileStyle = {
-    flex: "0 0 auto",
-    width: panelWidth ? `${panelWidth}px` : `${100 / panelCount}%`,
-    boxSizing: "border-box",
-    padding: "40px 36px 32px",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-  };
-
+  /* ============================================================
+     JSX STARTS HERE
+     ============================================================ */
   return (
     <div style={styles.page}>
-      {/* Decorative background blobs */}
-      <div style={styles.blob1} />
-      <div style={styles.blob2} />
-      <div style={styles.blob3} />
-
-      {/* Header */}
+      {/* === HEADER WITH ORIGINAL SVG LOGO === */}
       <header style={styles.header}>
         <div style={styles.brand}>
-          <div style={styles.logoBox}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 7C3 6.44772 3.44772 6 4 6H20C20.5523 6 21 6.44772 21 7V9C21 12.866 17.866 16 14 16H10C6.13401 16 3 12.866 3 9V7Z" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="rgba(255,255,255,0.2)" />
-              <path d="M8 6V4C8 3.44772 8.44772 3 9 3H15C15.5523 3 16 3.44772 16 4V6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M9 11L11 13L15 9" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+          {/* ORIGINAL INLINE SVG LOGO */}
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#0b5cff"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4 7h16l-1.5 12.5a2 2 0 0 1-2 1.5H7.5a2 2 0 0 1-2-1.5L4 7z" />
+            <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+            <path d="M9 12l2 2 4-4" />
+          </svg>
+
           <div>
             <div style={styles.siteName}>Bucket Lyst</div>
             <div style={styles.siteTag}>Student Task Manager</div>
@@ -366,583 +333,420 @@ export default function Auth() {
         </div>
       </header>
 
-      {/* Main card area */}
+      {/* === MAIN CONTENT AREA === */}
       <main style={styles.centerArea}>
-        {/* Left decorative panel (hidden on small screens via inline) */}
-        <div style={styles.leftPanel}>
-          <div style={styles.leftPanelContent}>
-            <div style={{ fontSize: 52, marginBottom: 20 }}>🎓</div>
-            <h2 style={styles.leftTitle}>Stay on top of your studies</h2>
-            <p style={styles.leftDesc}>
-              Manage tasks, take notes, and stay focused with your personal student dashboard.
-            </p>
-            <div style={styles.featureList}>
-              {["📋 Track all your tasks", "📝 Organize your notes", "🤖 AI study assistant", "🎵 Focus music player"].map((f, i) => (
-                <div key={i} style={styles.featureItem}>
-                  <div style={styles.featureDot} />
-                  <span>{f}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Auth card */}
-        <div style={styles.card} ref={cardRef}>
+        <div ref={cardRef} style={styles.card}>
           <div style={styles.sliderViewport}>
             <div style={sliderStyle}>
+              {/* === LOGIN PANEL === */}
+              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+                <div style={styles.title}>Sign in</div>
 
-              {/* PANEL 0: LOGIN */}
-              <div style={panelTileStyle}>
-                <div style={styles.panelIcon}>👋</div>
-                <h2 style={styles.title}>Welcome back</h2>
-                <p style={styles.subtitle}>Sign in to your account</p>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Email address</label>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(loginError) }}
-                    onFocus={() => setLoginError(false)}
-                  />
-                </div>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(loginError) }}
-                    onFocus={() => setLoginError(false)}
-                  />
-                </div>
-
-                <div style={styles.rowBetween}>
-                  <label style={styles.checkboxLabel}>
-                    <input type="checkbox" checked={keepSignedIn} onChange={(e) => setKeepSignedIn(e.target.checked)} style={{ marginRight: 7, accentColor: "#7c3aed" }} />
-                    Keep me signed in
-                  </label>
-                  <button style={styles.linkButton} onClick={openForgotEmailPanel}>
-                    Forgot password?
-                  </button>
-                </div>
+                <input
+                  style={styles.input}
+                  type="email"
+                  placeholder="Email"
+                  value={loginEmail}
+                  onChange={(e) => setLoginEmail(e.target.value)}
+                />
+                <input
+                  style={styles.input}
+                  type="password"
+                  placeholder="Password"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                />
 
                 <button style={styles.button} onClick={handleLogin} disabled={loading}>
-                  {loading ? "Signing in…" : "Sign In →"}
+                  {loading ? "Signing in..." : "Sign in"}
                 </button>
 
-                {message && <p style={styles.message}>{message}</p>}
+                <div style={styles.switchText}>
+                  <span
+                    style={styles.switchLink}
+                    onClick={() => {
+                      setMode("forgot-email");
+                      setStatus("");
+                    }}
+                  >
+                    Forgot your password
+                  </span>
+                </div>
 
-                <p style={styles.switchText}>
-                  Don't have an account?{" "}
-                  <span style={styles.switchLink} onClick={() => setMode("register")}>
+                <div style={styles.switchText}>
+                  Don’t have an account?{" "}
+                  <span
+                    style={styles.switchLink}
+                    onClick={() => {
+                      setMode("register");
+                      setStatus("");
+                    }}
+                  >
                     Create one
                   </span>
-                </p>
+                </div>
               </div>
 
-              {/* PANEL 1: FORGOT - ENTER EMAIL */}
-              <div style={panelTileStyle}>
-                <div style={styles.panelIcon}>🔐</div>
-                <h2 style={styles.title}>Reset Password</h2>
-                <p style={styles.subtitle}>We'll send a code to your email</p>
+              {/* === REGISTER PANEL === */}
+              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+                <div style={styles.title}>Create Account</div>
 
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Email address</label>
-                  <input
-                    type="email"
-                    placeholder="Enter your email"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(forgotError) }}
-                    onFocus={() => setForgotError(false)}
-                  />
-                </div>
+                <input
+                  style={styles.input}
+                  type="email"
+                  placeholder="Email"
+                  value={regEmail}
+                  onChange={(e) => setRegEmail(e.target.value)}
+                />
+                <input
+                  style={styles.input}
+                  type="password"
+                  placeholder="Password"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                />
 
-                <div style={{ display: "flex", gap: 10, width: "100%", maxWidth: 360 }}>
-                  <button style={styles.button} onClick={sendForgotCode} disabled={loading}>
-                    {loading ? "Sending…" : "Send Code"}
-                  </button>
-                  <button style={styles.buttonSecondary} onClick={cancelToLogin}>
-                    Cancel
-                  </button>
-                </div>
+                {renderPasswordRequirements(regStrength)}
 
-                {message && (
-                  <p style={{ ...styles.message, color: forgotError ? "#ef4444" : "#374151" }}>{message}</p>
-                )}
+                <input
+                  style={styles.input}
+                  type="password"
+                  placeholder="Confirm password"
+                  value={regConfirm}
+                  onChange={(e) => setRegConfirm(e.target.value)}
+                />
 
-                <p style={styles.switchText}>
-                  Remembered it?{" "}
-                  <span style={styles.switchLink} onClick={() => setMode("login")}>Sign in</span>
-                </p>
-              </div>
-
-              {/* PANEL 2: FORGOT - ENTER CODE */}
-              <div style={panelTileStyle}>
-                <div style={styles.panelIcon}>📬</div>
-                <h2 style={styles.title}>Check Your Email</h2>
-                <p style={styles.subtitle}>Enter the verification code we sent</p>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Verification code</label>
-                  <input
-                    placeholder="e.g. 123456"
-                    value={forgotCode}
-                    onChange={(e) => setForgotCode(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(forgotError), letterSpacing: 4, textAlign: "center", fontSize: 18 }}
-                    onFocus={() => {
-                      setForgotError(false);
-                      setMessageNeutral(true);
-                    }}
-                  />
-                </div>
-
-                <div style={{ display: "flex", gap: 10, width: "100%", maxWidth: 360 }}>
-                  <button style={styles.button} onClick={verifyForgotCodeAndContinue}>
-                    Next →
-                  </button>
-                  <button style={styles.buttonSecondary} onClick={cancelToLogin}>
-                    Cancel
-                  </button>
-                </div>
-
-                {message && (
-                  <p style={{ ...styles.message, color: forgotError ? "#ef4444" : messageNeutral ? "#374151" : "#ef4444" }}>{message}</p>
-                )}
-
-                <p style={styles.switchText}>
-                  Wrong email?{" "}
-                  <span style={styles.switchLink} onClick={() => setMode("forgot-email")}>Back</span>
-                </p>
-              </div>
-
-              {/* PANEL 3: FORGOT - RESET NEW PASSWORD */}
-              <div style={panelTileStyle}>
-                <div style={styles.panelIcon}>🔑</div>
-                <h2 style={styles.title}>Set New Password</h2>
-                <p style={styles.subtitle}>Choose a strong password</p>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>New password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(forgotError) }}
-                    onFocus={() => setForgotError(false)}
-                  />
-                </div>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Confirm new password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={forgotConfirmPassword}
-                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(forgotError) }}
-                    onFocus={() => setForgotError(false)}
-                  />
-                </div>
-
-                <div style={styles.criteria}>
-                  <PasswordCriteria label="At least 8 characters" ok={resetStrength.length} />
-                  <PasswordCriteria label="Contains a number" ok={resetStrength.number} />
-                  <PasswordCriteria label="Uppercase letter" ok={resetStrength.uppercase} />
-                  <PasswordCriteria label="Special character" ok={resetStrength.special} />
-                </div>
-
-                <div style={{ display: "flex", gap: 10, width: "100%", maxWidth: 360 }}>
-                  <button style={styles.button} onClick={confirmForgotPassword} disabled={loading}>
-                    {loading ? "Confirming…" : "Confirm"}
-                  </button>
-                  <button style={styles.buttonSecondary} onClick={cancelToLogin}>
-                    Cancel
-                  </button>
-                </div>
-
-                {message && <p style={styles.message}>{message}</p>}
-
-                <p style={styles.switchText}>
-                  Remembered it?{" "}
-                  <span style={styles.switchLink} onClick={() => setMode("login")}>Sign in</span>
-                </p>
-              </div>
-
-              {/* PANEL 4: REGISTER */}
-              <div style={panelTileStyle}>
-                <div style={styles.panelIcon}>✨</div>
-                <h2 style={styles.title}>Create Account</h2>
-                <p style={styles.subtitle}>Join Bucket Lyst today — it's free</p>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Email address</label>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={regEmail}
-                    onChange={(e) => setRegEmail(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(regError) }}
-                    onFocus={() => setRegError(false)}
-                  />
-                </div>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(regError) }}
-                    onFocus={() => setRegError(false)}
-                  />
-                </div>
-
-                <div style={styles.fieldGroup}>
-                  <label style={styles.fieldLabel}>Confirm password</label>
-                  <input
-                    type="password"
-                    placeholder="••••••••"
-                    value={regConfirm}
-                    onChange={(e) => setRegConfirm(e.target.value)}
-                    style={{ ...styles.input, border: inputBorder(regError) }}
-                    onFocus={() => setRegError(false)}
-                  />
-                </div>
-
-                <div style={styles.criteria}>
-                  <PasswordCriteria label="At least 8 characters" ok={regStrength.length} />
-                  <PasswordCriteria label="Contains a number" ok={regStrength.number} />
-                  <PasswordCriteria label="Uppercase letter" ok={regStrength.uppercase} />
-                  <PasswordCriteria label="Special character" ok={regStrength.special} />
-                </div>
-
-                <button style={{ ...styles.button, marginTop: 4 }} onClick={handleRegister} disabled={loading}>
-                  {loading ? "Creating…" : "Create Account →"}
+                <button style={styles.button} onClick={handleRegister} disabled={loading}>
+                  {loading ? "Creating account..." : "Create Account"}
                 </button>
 
-                {message && <p style={styles.message}>{message}</p>}
-
-                <p style={styles.switchText}>
+                <div style={styles.switchText}>
                   Already have an account?{" "}
-                  <span style={styles.switchLink} onClick={() => setMode("login")}>Sign in</span>
-                </p>
+                  <span
+                    style={styles.switchLink}
+                    onClick={() => {
+                      setMode("login");
+                      setStatus("");
+                    }}
+                  >
+                    Sign in
+                  </span>
+                </div>
               </div>
 
+              {/* === FORGOT EMAIL PANEL === */}
+              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+                <div style={styles.title}>Reset Password</div>
+
+                <input
+                  style={styles.input}
+                  type="email"
+                  placeholder="Enter your email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+
+                <button
+                  style={styles.button}
+                  onClick={handleForgotSendCode}
+                  disabled={loading}
+                >
+                  {loading ? "Sending code..." : "Send code"}
+                </button>
+
+                <div style={styles.switchText}>
+                  Remembered your password?{" "}
+                  <span
+                    style={styles.switchLink}
+                    onClick={() => {
+                      setMode("login");
+                      setStatus("");
+                    }}
+                  >
+                    Back to sign in
+                  </span>
+                </div>
+              </div>
+
+              {/* === FORGOT CODE PANEL === */}
+              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+                <div style={styles.title}>Enter Verification Code</div>
+
+                <input
+                  style={styles.input}
+                  type="text"
+                  placeholder="Verification code"
+                  value={forgotCode}
+                  onChange={(e) => setForgotCode(e.target.value)}
+                />
+
+                <button
+                  style={styles.button}
+                  onClick={() => {
+                    if (!forgotCode) {
+                      setStatus("Please enter the code from your email.", true);
+                      return;
+                    }
+                    setStatus("");
+                    setMode("forgot-reset");
+                  }}
+                >
+                  Continue
+                </button>
+              </div>
+
+              {/* === FORGOT RESET PANEL === */}
+              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+                <div style={styles.title}>Create New Password</div>
+
+                <input
+                  style={styles.input}
+                  type="password"
+                  placeholder="New password"
+                  value={forgotNewPassword}
+                  onChange={(e) => setForgotNewPassword(e.target.value)}
+                />
+
+                {renderPasswordRequirements(resetStrength)}
+
+                <input
+                  style={styles.input}
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={forgotConfirmPassword}
+                  onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                />
+
+                <button
+                  style={styles.button}
+                  onClick={handleForgotReset}
+                  disabled={loading}
+                >
+                  {loading ? "Saving..." : "Save new password"}
+                </button>
+              </div>
             </div>
+          </div>
+
+          {/* === STATUS MESSAGE === */}
+          <div style={styles.message}>
+            {message && (
+              <span style={{ color: isError ? "#ef4444" : "#10b981" }}>{message}</span>
+            )}
           </div>
         </div>
       </main>
 
-      {/* Footer */}
+      {/* === FOOTER === */}
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={styles.statusDot} />
-            <span style={styles.statusText}>All systems operational</span>
+            <span style={styles.statusText}>System status: All systems operational</span>
           </div>
           <div style={styles.copy}>© {new Date().getFullYear()} Bucket Lyst</div>
         </div>
       </footer>
 
-      {/* Loading overlay */}
+      {/* === LOADING OVERLAY === */}
       {loading && (
         <div style={styles.loadingOverlay}>
-          <div style={styles.spinnerWrap}>
-            <div style={styles.spinner} />
-            <p style={{ color: "#6d28d9", fontSize: 14, fontWeight: 600, margin: "12px 0 0" }}>Please wait…</p>
-          </div>
+          <div style={styles.spinner} />
         </div>
       )}
-
-      <style>{`
-        @keyframes auth-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes auth-blob { 0%,100% { transform: scale(1) translate(0,0); } 50% { transform: scale(1.08) translate(12px,-12px); } }
-      `}</style>
     </div>
   );
 }
 
-/* Helper: password criteria row */
-function PasswordCriteria({ label, ok }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-      <div style={{
-        width: 18, height: 18, borderRadius: 6,
-        background: ok ? "linear-gradient(135deg,#7c3aed,#a78bfa)" : "#f3f4f6",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-        boxShadow: ok ? "0 2px 8px rgba(124,58,237,0.25)" : "none",
-        transition: "background 0.2s, box-shadow 0.2s",
-      }}>
-        {ok && (
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 5L4 7L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        )}
-      </div>
-      <span style={{ color: ok ? "#5b21b6" : "#9ca3af", fontSize: 13, fontWeight: ok ? 600 : 400, transition: "color 0.2s" }}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-/* Styles */
 const styles = {
   page: {
     minHeight: "100vh",
     display: "flex",
     flexDirection: "column",
-    background: "linear-gradient(135deg, #faf5ff 0%, #f3e8ff 40%, #fce7f3 100%)",
-    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    background: "#f5f5f7",
+    fontFamily:
+      "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
     boxSizing: "border-box",
-    position: "relative",
-    overflow: "hidden",
   },
-  blob1: {
-    position: "absolute", top: -120, right: -80,
-    width: 400, height: 400, borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(167,139,250,0.25) 0%, transparent 70%)",
-    pointerEvents: "none",
-    animation: "auth-blob 8s ease-in-out infinite",
-  },
-  blob2: {
-    position: "absolute", bottom: -100, left: -60,
-    width: 350, height: 350, borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(236,72,153,0.15) 0%, transparent 70%)",
-    pointerEvents: "none",
-    animation: "auth-blob 10s ease-in-out infinite reverse",
-  },
-  blob3: {
-    position: "absolute", top: "40%", left: "30%",
-    width: 300, height: 300, borderRadius: "50%",
-    background: "radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%)",
-    pointerEvents: "none",
-  },
+
   header: {
-    padding: "24px 32px 0",
+    padding: "28px 20px 0 20px",
     display: "flex",
     justifyContent: "center",
-    position: "relative",
-    zIndex: 1,
   },
+
   brand: {
     display: "flex",
     alignItems: "center",
     gap: 12,
   },
-  logoBox: {
-    width: 44, height: 44, borderRadius: 14,
-    background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
-    display: "flex", alignItems: "center", justifyContent: "center",
-    boxShadow: "0 4px 16px rgba(124,58,237,0.3)",
-  },
+
   siteName: {
-    fontSize: 22, fontWeight: 800,
-    color: "#4c1d95",
-    letterSpacing: -0.5, lineHeight: 1,
+    fontSize: 20,
+    fontWeight: 700,
+    color: "#0b5cff",
+    lineHeight: 1,
   },
+
   siteTag: {
-    fontSize: 12, color: "#8b5cf6",
-    marginTop: 2, fontWeight: 500,
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
   },
+
   centerArea: {
     flex: 1,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    padding: "24px 20px",
-    gap: 40,
-    position: "relative",
-    zIndex: 1,
+    padding: "20px",
   },
-  leftPanel: {
-    width: 320,
-    flexShrink: 0,
-    display: "none", // shown via media query workaround — always show on desktop
-  },
-  leftPanelContent: {
-    padding: "32px",
-    background: "rgba(255,255,255,0.6)",
-    borderRadius: 24,
-    backdropFilter: "blur(20px)",
-    boxShadow: "0 4px 24px rgba(124,58,237,0.1)",
-    border: "1px solid rgba(255,255,255,0.8)",
-  },
-  leftTitle: {
-    fontSize: 22, fontWeight: 700,
-    color: "#1e1b4b", margin: "0 0 10px",
-    lineHeight: 1.3,
-  },
-  leftDesc: {
-    fontSize: 14, color: "#6b7280",
-    lineHeight: 1.6, margin: "0 0 20px",
-  },
-  featureList: {
-    display: "flex", flexDirection: "column", gap: 10,
-  },
-  featureItem: {
-    display: "flex", alignItems: "center", gap: 10,
-    fontSize: 14, color: "#374151", fontWeight: 500,
-  },
-  featureDot: {
-    width: 8, height: 8, borderRadius: "50%",
-    background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
-    flexShrink: 0,
-  },
+
   card: {
     width: 440,
     minHeight: 520,
-    borderRadius: 24,
-    background: "rgba(255,255,255,0.92)",
-    boxShadow: "0 20px 60px rgba(124,58,237,0.12), 0 4px 16px rgba(0,0,0,0.06)",
-    backdropFilter: "blur(20px)",
-    border: "1px solid rgba(255,255,255,0.9)",
+    padding: 0,
+    borderRadius: 16,
+    background: "white",
+    boxShadow: "0 12px 40px rgba(2,6,23,0.08)",
+    textAlign: "center",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     overflow: "hidden",
     boxSizing: "border-box",
   },
+
   sliderViewport: {
     width: "100%",
     overflow: "hidden",
     display: "block",
-    boxSizing: "border-box",
   },
-  panelIcon: {
-    fontSize: 36, marginBottom: 10,
-  },
+
   title: {
-    marginBottom: 6, fontWeight: 800,
-    fontSize: 24, color: "#1e1b4b",
-    letterSpacing: -0.5, textAlign: "center",
+    marginBottom: 18,
+    fontWeight: 600,
+    fontSize: 22,
   },
-  subtitle: {
-    fontSize: 14, color: "#9ca3af",
-    margin: "0 0 24px", textAlign: "center",
-    fontWeight: 400,
-  },
-  fieldGroup: {
-    width: "100%", maxWidth: 360, marginBottom: 14,
-  },
-  fieldLabel: {
-    display: "block", fontSize: 12, fontWeight: 700,
-    color: "#6b7280", marginBottom: 6,
-    letterSpacing: 0.4, textTransform: "uppercase",
-  },
+
   input: {
-    width: "100%", padding: "12px 14px",
-    borderRadius: 12, fontSize: 14,
-    outline: "none", boxSizing: "border-box",
-    marginBottom: 0, fontFamily: "inherit",
-    background: "#fafafa", color: "#1e1b4b",
-    transition: "border-color 0.18s, box-shadow 0.18s",
-  },
-  rowBetween: {
-    width: "100%", maxWidth: 360,
-    display: "flex", justifyContent: "space-between",
-    alignItems: "center", marginBottom: 16,
-  },
-  checkboxLabel: {
-    display: "flex", alignItems: "center",
-    color: "#374151", fontSize: 13, fontWeight: 500,
-    cursor: "pointer",
-  },
-  linkButton: {
-    background: "transparent", border: "none",
-    color: "#7c3aed", cursor: "pointer",
-    fontSize: 13, fontWeight: 600,
-    textDecoration: "none", padding: 0,
-    fontFamily: "inherit",
-  },
-  button: {
-    flex: 1, width: "100%", maxWidth: 360,
-    padding: "13px 20px", borderRadius: 12,
-    border: "none",
-    background: "linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)",
-    color: "white", fontSize: 15, fontWeight: 700,
-    cursor: "pointer", marginTop: 4,
-    boxShadow: "0 4px 16px rgba(124,58,237,0.3)",
-    fontFamily: "inherit", letterSpacing: 0.2,
-    transition: "opacity 0.15s, transform 0.1s",
-  },
-  buttonSecondary: {
-    flex: 1, padding: "13px 20px", borderRadius: 12,
-    border: "1.5px solid #e5e7eb",
-    background: "#f9fafb", color: "#374151",
-    fontSize: 15, fontWeight: 600,
-    cursor: "pointer", marginTop: 4,
-    fontFamily: "inherit",
-  },
-  message: {
-    marginTop: 12, color: "#ef4444",
-    minHeight: 20, fontSize: 13,
-    textAlign: "center", fontWeight: 500,
-  },
-  switchText: {
-    marginTop: 20, color: "#9ca3af",
-    fontSize: 14, textAlign: "center",
-  },
-  switchLink: {
-    color: "#7c3aed", cursor: "pointer",
-    fontWeight: 700, textDecoration: "none",
-  },
-  criteria: {
-    width: "100%", maxWidth: 360,
-    marginTop: 4, marginBottom: 12,
-    textAlign: "left",
-    background: "#faf5ff",
-    borderRadius: 12, padding: "12px 14px",
+    width: "92%",
+    maxWidth: 380,
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "1px solid #e6e7eb",
+    fontSize: 14,
+    outline: "none",
     boxSizing: "border-box",
+    marginBottom: 12,
   },
+
+  button: {
+    width: "92%",
+    maxWidth: 380,
+    padding: "12px",
+    borderRadius: 10,
+    border: "none",
+    background: "#0b5cff",
+    color: "white",
+    fontSize: 15,
+    cursor: "pointer",
+    marginTop: 8,
+  },
+
+  switchText: {
+    marginTop: 18,
+    color: "#6b7280",
+    fontSize: 14,
+  },
+
+  switchLink: {
+    color: "#0b5cff",
+    cursor: "pointer",
+    textDecoration: "underline",
+  },
+
+  criteria: {
+    width: "92%",
+    maxWidth: 380,
+    marginTop: 6,
+    marginBottom: 6,
+    textAlign: "left",
+  },
+
+  message: {
+    marginTop: 12,
+    minHeight: 20,
+    fontSize: 13,
+  },
+
   footer: {
-    borderTop: "1px solid rgba(124,58,237,0.08)",
-    background: "rgba(255,255,255,0.7)",
-    padding: "12px 24px",
-    backdropFilter: "blur(10px)",
-    position: "relative", zIndex: 1,
+    borderTop: "1px solid rgba(0,0,0,0.04)",
+    background: "#ffffff",
+    padding: "12px 20px",
   },
+
   footerInner: {
-    maxWidth: 980, margin: "0 auto",
-    display: "flex", justifyContent: "space-between",
-    alignItems: "center", gap: 12,
-    fontSize: 13, color: "#6b7280",
+    maxWidth: 980,
+    margin: "0 auto",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    fontSize: 13,
+    color: "#6b7280",
   },
+
   statusDot: {
-    width: 8, height: 8, borderRadius: 999,
+    width: 10,
+    height: 10,
+    borderRadius: 999,
     background: "#10b981",
-    boxShadow: "0 0 6px rgba(16,185,129,0.4)",
+    boxShadow: "0 0 6px rgba(16,185,129,0.18)",
   },
-  statusText: { color: "#374151", fontSize: 13 },
-  copy: { color: "#9ca3af", fontSize: 13 },
+
+  statusText: {
+    color: "#374151",
+    fontSize: 13,
+  },
+
+  copy: {
+    color: "#9ca3af",
+    fontSize: 13,
+  },
+
   loadingOverlay: {
-    position: "fixed", inset: 0,
-    display: "flex", justifyContent: "center", alignItems: "center",
-    background: "rgba(245,243,255,0.7)",
-    backdropFilter: "blur(8px)",
+    position: "fixed",
+    inset: 0,
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "rgba(10,11,13,0.12)",
     zIndex: 9999,
   },
-  spinnerWrap: {
-    display: "flex", flexDirection: "column",
-    alignItems: "center",
-    background: "white",
-    borderRadius: 20, padding: "28px 36px",
-    boxShadow: "0 12px 40px rgba(124,58,237,0.15)",
-  },
+
   spinner: {
-    width: 44, height: 44, borderRadius: "50%",
-    border: "4px solid #ede9fe",
-    borderTopColor: "#7c3aed",
-    animation: "auth-spin 0.8s linear infinite",
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    border: "6px solid rgba(255,255,255,0.9)",
+    borderTopColor: "#0b5cff",
+    boxShadow: "0 6px 20px rgba(11,92,255,0.12)",
+    animation: "spin 900ms linear infinite",
   },
 };
+
+/* ============================================================
+   SPINNER KEYFRAMES INJECTION
+   ============================================================ */
+if (typeof document !== "undefined" && !document.getElementById("auth-spinner-keyframes")) {
+  const style = document.createElement("style");
+  style.id = "auth-spinner-keyframes";
+  style.innerHTML = `
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+}
