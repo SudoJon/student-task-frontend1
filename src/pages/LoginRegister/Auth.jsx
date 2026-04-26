@@ -1,10 +1,3 @@
-/* ============================================================
-   AUTH.JSX — PART 1
-   Paste this at the TOP of your file.
-   DO NOT add the styles object yet.
-   PART 2 will contain the styles + closing braces.
-   ============================================================ */
-
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   CognitoUserPool,
@@ -20,22 +13,43 @@ const pool = new CognitoUserPool({
   ClientId: cognitoConfig.clientId,
 });
 
+/* === Helper: mask email for display === */
+function maskEmail(email) {
+  if (!email) return "";
+  const [name, domain] = email.split("@");
+  if (!domain) return email;
+  if (name.length <= 2) return `${name[0]}***@${domain}`;
+  return `${name[0]}***${name[name.length - 1]}@${domain}`;
+}
+
 /* ============================================================
    MAIN AUTH COMPONENT
    ============================================================ */
 export default function Auth() {
   /* === Modes for slider === */
-  const [mode, setMode] = useState("login"); 
-  const panels = ["login", "register", "forgot-email", "forgot-code", "forgot-reset"];
+  const [mode, setMode] = useState("login");
+  const panels = [
+    "login",
+    "register",
+    "forgot-email",
+    "forgot-code",
+    "forgot-reset",
+    "verify-account",
+  ];
 
   /* === Login State === */
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
 
   /* === Register State === */
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirm, setRegConfirm] = useState("");
+
+  /* === Verify Account State === */
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
 
   /* === Forgot Password State === */
   const [forgotEmail, setForgotEmail] = useState("");
@@ -101,13 +115,28 @@ export default function Auth() {
     setIsError(error);
   };
 
+  /* === Helper: store token based on keepSignedIn === */
+  const storeSessionToken = (session) => {
+    try {
+      const idToken = session.getIdToken().getJwtToken();
+      if (keepSignedIn) {
+        localStorage.setItem("authToken", idToken);
+        sessionStorage.removeItem("authToken");
+      } else {
+        sessionStorage.setItem("authToken", idToken);
+        localStorage.removeItem("authToken");
+      }
+    } catch {
+      // fail silently; navigation still happens
+    }
+  };
+
   /* ============================================================
      LOGIN HANDLER
      ============================================================ */
   const handleLogin = () => {
     setLoading(true);
     setStatus("");
-
     if (!loginEmail || !loginPassword) {
       setStatus("Please enter email and password.", true);
       setLoading(false);
@@ -125,76 +154,164 @@ export default function Auth() {
     });
 
     user.authenticateUser(authDetails, {
-      onSuccess: () => {
+      onSuccess: (session) => {
         setStatus("");
         setLoading(false);
+        storeSessionToken(session);
         navigate("/home", { replace: true });
       },
       onFailure: (err) => {
-        setStatus(err.message || "Login failed.", true);
+        if (err && err.code === "UserNotConfirmedException") {
+          setStatus("Please verify your account before signing in.", true);
+          setConfirmEmail(loginEmail);
+          setMode("verify-account");
+        } else {
+          setStatus(err.message || "Login failed.", true);
+        }
         setLoading(false);
       },
       newPasswordRequired: () => {
-        setStatus("Additional steps required. Try resetting your password.", true);
+        setStatus(
+          "Additional steps required. Try resetting your password.",
+          true
+        );
         setLoading(false);
       },
     });
   };
 
   /* ============================================================
-     REGISTER HANDLER
+     REGISTER HANDLER (NOW GOES TO VERIFY-ACCOUNT)
      ============================================================ */
-  const handleRegister = () => {
+const handleRegister = () => {
+  setLoading(true);
+  setStatus("");
+
+  if (!regEmail || !regPassword || !regConfirm) {
+    setStatus("Please fill out all fields.", true);
+    setLoading(false);
+    return;
+  }
+  if (regPassword !== regConfirm) {
+    setStatus("Passwords do not match.", true);
+    setLoading(false);
+    return;
+  }
+  if (!regAllStrong) {
+    setStatus("Password does not meet all requirements.", true);
+    setLoading(false);
+    return;
+  }
+
+  pool.signUp(regEmail, regPassword, [], null, (err, result) => {
+    if (err) {
+      setStatus(err.message || "Error creating account.", true);
+      setLoading(false);
+      return;
+    }
+
+    const emailFromCognito =
+      (result && result.user && result.user.getUsername()) || regEmail;
+
+    setConfirmEmail(emailFromCognito);
+    setConfirmCode("");
+
+    // ⭐ Correct behavior:
+    // Show success message on the SIGN IN panel
+    setStatus("Account created. Check your email for a verification code.");
+
+    // ⭐ Send user back to Sign In (NOT to create-new-password)
+    setMode("login");
+
+    setLoading(false);
+  });
+};
+
+  /* ============================================================
+     VERIFY ACCOUNT HANDLER
+     ============================================================ */
+  const handleVerifyAccount = () => {
     setLoading(true);
     setStatus("");
 
-    if (!regEmail || !regPassword || !regConfirm) {
-      setStatus("Please fill out all fields.", true);
+    if (!confirmEmail || !confirmCode) {
+      setStatus("Please enter the verification code.", true);
       setLoading(false);
       return;
     }
 
-    if (regPassword !== regConfirm) {
-      setStatus("Passwords do not match.", true);
+    const user = new CognitoUser({
+      Username: confirmEmail,
+      Pool: pool,
+    });
+
+    user.confirmRegistration(confirmCode, true, {
+      onSuccess: () => {
+        // After confirmation, auto-login using the original email + password if available
+        if (!regPassword) {
+          setStatus(
+            "Account verified. Please sign in with your credentials."
+          );
+          setMode("login");
+          setLoading(false);
+          return;
+        }
+
+        const authDetails = new AuthenticationDetails({
+          Username: confirmEmail,
+          Password: regPassword,
+        });
+
+        user.authenticateUser(authDetails, {
+          onSuccess: (session) => {
+            setStatus("");
+            setLoading(false);
+            storeSessionToken(session);
+            navigate("/home", { replace: true });
+          },
+          onFailure: () => {
+            setStatus(
+              "Account verified. Please sign in with your credentials.",
+              false
+            );
+            setLoading(false);
+            setMode("login");
+          },
+        });
+      },
+      onFailure: (err) => {
+        setStatus(err.message || "Error verifying account.", true);
+        setLoading(false);
+      },
+    });
+  };
+
+  /* ============================================================
+     RESEND VERIFICATION CODE
+     ============================================================ */
+  const handleResendVerification = () => {
+    setLoading(true);
+    setStatus("");
+
+    if (!confirmEmail) {
+      setStatus("No email available to resend code.", true);
       setLoading(false);
       return;
     }
 
-    if (!regAllStrong) {
-      setStatus("Password does not meet all requirements.", true);
-      setLoading(false);
-      return;
-    }
+    const user = new CognitoUser({
+      Username: confirmEmail,
+      Pool: pool,
+    });
 
-    pool.signUp(regEmail, regPassword, [], null, (err) => {
+    user.resendConfirmationCode((err) => {
       if (err) {
-        setStatus(err.message || "Error creating account.", true);
+        setStatus(err.message || "Error resending code.", true);
         setLoading(false);
         return;
       }
-
-      // Auto-login after sign up
-      const user = new CognitoUser({
-        Username: regEmail,
-        Pool: pool,
-      });
-
-      const authDetails = new AuthenticationDetails({
-        Username: regEmail,
-        Password: regPassword,
-      });
-
-      user.authenticateUser(authDetails, {
-        onSuccess: () => {
-          setStatus("");
-          setLoading(false);
-          navigate("/home", { replace: true });
-        },
-        onFailure: () => {
-          setStatus("Account created, but login failed. Try signing in.", true);
-          setLoading(false);
-        },
-      });
+      setStatus("A new verification code has been sent to your email.");
+      setLoading(false);
     });
   };
 
@@ -204,7 +321,6 @@ export default function Auth() {
   const handleForgotSendCode = () => {
     setLoading(true);
     setStatus("");
-
     if (!forgotEmail) {
       setStatus("Please enter your email.", true);
       setLoading(false);
@@ -236,19 +352,21 @@ export default function Auth() {
   const handleForgotReset = () => {
     setLoading(true);
     setStatus("");
-
-    if (!forgotEmail || !forgotCode || !forgotNewPassword || !forgotConfirmPassword) {
+    if (
+      !forgotEmail ||
+      !forgotCode ||
+      !forgotNewPassword ||
+      !forgotConfirmPassword
+    ) {
       setStatus("Please fill out all fields.", true);
       setLoading(false);
       return;
     }
-
     if (forgotNewPassword !== forgotConfirmPassword) {
       setStatus("Passwords do not match.", true);
       setLoading(false);
       return;
     }
-
     if (!resetAllStrong) {
       setStatus("Password does not meet all requirements.", true);
       setLoading(false);
@@ -279,7 +397,14 @@ export default function Auth() {
      PASSWORD CRITERIA COMPONENT
      ============================================================ */
   const PasswordCriteria = ({ label, ok }) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 6,
+      }}
+    >
       <div
         style={{
           width: 12,
@@ -289,7 +414,14 @@ export default function Auth() {
           boxShadow: ok ? "0 0 6px rgba(16,185,129,0.18)" : "none",
         }}
       />
-      <div style={{ color: ok ? "#065f46" : "#6b7280", fontSize: 13 }}>{label}</div>
+      <div
+        style={{
+          color: ok ? "#065f46" : "#6b7280",
+          fontSize: 13,
+        }}
+      >
+        {label}
+      </div>
     </div>
   );
 
@@ -325,7 +457,6 @@ export default function Auth() {
             <path d="M9 7V5a3 3 0 0 1 6 0v2" />
             <path d="M9 12l2 2 4-4" />
           </svg>
-
           <div>
             <div style={styles.siteName}>Bucket Lyst</div>
             <div style={styles.siteTag}>Student Task Manager</div>
@@ -339,9 +470,14 @@ export default function Auth() {
           <div style={styles.sliderViewport}>
             <div style={sliderStyle}>
               {/* === LOGIN PANEL === */}
-              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
                 <div style={styles.title}>Sign in</div>
-
                 <input
                   style={styles.input}
                   type="email"
@@ -357,7 +493,42 @@ export default function Auth() {
                   onChange={(e) => setLoginPassword(e.target.value)}
                 />
 
-                <button style={styles.button} onClick={handleLogin} disabled={loading}>
+                {/* Keep me signed in */}
+                <div
+                  style={styles.checkboxRow}
+                  onClick={() => setKeepSignedIn(!keepSignedIn)}
+                >
+                  <div
+                    style={{
+                      ...styles.checkboxBox,
+                      ...(keepSignedIn ? styles.checkboxBoxChecked : {}),
+                    }}
+                  >
+                    {keepSignedIn && (
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                      >
+                        <path
+                          d="M3 8.5L6.2 11.5L13 4.5"
+                          stroke="white"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <span style={styles.checkboxLabel}>Keep me signed in</span>
+                </div>
+
+                <button
+                  style={styles.button}
+                  onClick={handleLogin}
+                  disabled={loading}
+                >
                   {loading ? "Signing in..." : "Sign in"}
                 </button>
 
@@ -372,7 +543,6 @@ export default function Auth() {
                     Forgot your password
                   </span>
                 </div>
-
                 <div style={styles.switchText}>
                   Don’t have an account?{" "}
                   <span
@@ -388,9 +558,14 @@ export default function Auth() {
               </div>
 
               {/* === REGISTER PANEL === */}
-              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
                 <div style={styles.title}>Create Account</div>
-
                 <input
                   style={styles.input}
                   type="email"
@@ -405,9 +580,7 @@ export default function Auth() {
                   value={regPassword}
                   onChange={(e) => setRegPassword(e.target.value)}
                 />
-
                 {renderPasswordRequirements(regStrength)}
-
                 <input
                   style={styles.input}
                   type="password"
@@ -415,11 +588,13 @@ export default function Auth() {
                   value={regConfirm}
                   onChange={(e) => setRegConfirm(e.target.value)}
                 />
-
-                <button style={styles.button} onClick={handleRegister} disabled={loading}>
+                <button
+                  style={styles.button}
+                  onClick={handleRegister}
+                  disabled={loading}
+                >
                   {loading ? "Creating account..." : "Create Account"}
                 </button>
-
                 <div style={styles.switchText}>
                   Already have an account?{" "}
                   <span
@@ -434,10 +609,72 @@ export default function Auth() {
                 </div>
               </div>
 
-              {/* === FORGOT EMAIL PANEL === */}
-              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
-                <div style={styles.title}>Reset Password</div>
+              {/* === VERIFY ACCOUNT PANEL === */}
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
+                <div style={styles.title}>Check Your Email</div>
+                <input
+                  style={{
+                    ...styles.input,
+                    backgroundColor: "#f9fafb",
+                    cursor: "default",
+                  }}
+                  type="text"
+                  readOnly
+                  value={maskEmail(confirmEmail)}
+                  placeholder="Email"
+                />
+                <input
+                  style={styles.input}
+                  type="text"
+                  placeholder="Verification code"
+                  value={confirmCode}
+                  onChange={(e) => setConfirmCode(e.target.value)}
+                />
+                <button
+                  style={styles.button}
+                  onClick={handleVerifyAccount}
+                  disabled={loading}
+                >
+                  {loading ? "Verifying..." : "Verify account"}
+                </button>
+                <div style={styles.switchText}>
+                  Didn’t get a code?{" "}
+                  <span
+                    style={styles.switchLink}
+                    onClick={handleResendVerification}
+                  >
+                    Resend code
+                  </span>
+                </div>
+                <div style={styles.switchText}>
+                  Already verified?{" "}
+                  <span
+                    style={styles.switchLink}
+                    onClick={() => {
+                      setMode("login");
+                      setStatus("");
+                    }}
+                  >
+                    Back to sign in
+                  </span>
+                </div>
+              </div>
 
+              {/* === FORGOT EMAIL PANEL === */}
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
+                <div style={styles.title}>Reset Password</div>
                 <input
                   style={styles.input}
                   type="email"
@@ -445,7 +682,6 @@ export default function Auth() {
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                 />
-
                 <button
                   style={styles.button}
                   onClick={handleForgotSendCode}
@@ -453,7 +689,6 @@ export default function Auth() {
                 >
                   {loading ? "Sending code..." : "Send code"}
                 </button>
-
                 <div style={styles.switchText}>
                   Remembered your password?{" "}
                   <span
@@ -469,9 +704,14 @@ export default function Auth() {
               </div>
 
               {/* === FORGOT CODE PANEL === */}
-              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
                 <div style={styles.title}>Enter Verification Code</div>
-
                 <input
                   style={styles.input}
                   type="text"
@@ -479,12 +719,14 @@ export default function Auth() {
                   value={forgotCode}
                   onChange={(e) => setForgotCode(e.target.value)}
                 />
-
                 <button
                   style={styles.button}
                   onClick={() => {
                     if (!forgotCode) {
-                      setStatus("Please enter the code from your email.", true);
+                      setStatus(
+                        "Please enter the code from your email.",
+                        true
+                      );
                       return;
                     }
                     setStatus("");
@@ -496,9 +738,14 @@ export default function Auth() {
               </div>
 
               {/* === FORGOT RESET PANEL === */}
-              <div style={{ width: panelWidth, padding: 24, boxSizing: "border-box" }}>
+              <div
+                style={{
+                  width: panelWidth,
+                  padding: 24,
+                  boxSizing: "border-box",
+                }}
+              >
                 <div style={styles.title}>Create New Password</div>
-
                 <input
                   style={styles.input}
                   type="password"
@@ -506,17 +753,16 @@ export default function Auth() {
                   value={forgotNewPassword}
                   onChange={(e) => setForgotNewPassword(e.target.value)}
                 />
-
                 {renderPasswordRequirements(resetStrength)}
-
                 <input
                   style={styles.input}
                   type="password"
                   placeholder="Confirm new password"
                   value={forgotConfirmPassword}
-                  onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                  onChange={(e) =>
+                    setForgotConfirmPassword(e.target.value)
+                  }
                 />
-
                 <button
                   style={styles.button}
                   onClick={handleForgotReset}
@@ -531,7 +777,13 @@ export default function Auth() {
           {/* === STATUS MESSAGE === */}
           <div style={styles.message}>
             {message && (
-              <span style={{ color: isError ? "#ef4444" : "#10b981" }}>{message}</span>
+              <span
+                style={{
+                  color: isError ? "#ef4444" : "#10b981",
+                }}
+              >
+                {message}
+              </span>
             )}
           </div>
         </div>
@@ -540,11 +792,21 @@ export default function Auth() {
       {/* === FOOTER === */}
       <footer style={styles.footer}>
         <div style={styles.footerInner}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
             <div style={styles.statusDot} />
-            <span style={styles.statusText}>System status: All systems operational</span>
+            <span style={styles.statusText}>
+              System status: All systems operational
+            </span>
           </div>
-          <div style={styles.copy}>© {new Date().getFullYear()} Bucket Lyst</div>
+          <div style={styles.copy}>
+            © {new Date().getFullYear()} Bucket Lyst
+          </div>
         </div>
       </footer>
 
@@ -558,6 +820,9 @@ export default function Auth() {
   );
 }
 
+/* ============================================================
+   STYLES + SPINNER KEYFRAMES
+   ============================================================ */
 const styles = {
   page: {
     minHeight: "100vh",
@@ -568,32 +833,27 @@ const styles = {
       "Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial",
     boxSizing: "border-box",
   },
-
   header: {
     padding: "28px 20px 0 20px",
     display: "flex",
     justifyContent: "center",
   },
-
   brand: {
     display: "flex",
     alignItems: "center",
     gap: 12,
   },
-
   siteName: {
     fontSize: 20,
     fontWeight: 700,
     color: "#0b5cff",
     lineHeight: 1,
   },
-
   siteTag: {
     fontSize: 12,
     color: "#6b7280",
     marginTop: 2,
   },
-
   centerArea: {
     flex: 1,
     display: "flex",
@@ -601,7 +861,6 @@ const styles = {
     alignItems: "center",
     padding: "20px",
   },
-
   card: {
     width: 440,
     minHeight: 520,
@@ -616,19 +875,16 @@ const styles = {
     overflow: "hidden",
     boxSizing: "border-box",
   },
-
   sliderViewport: {
     width: "100%",
     overflow: "hidden",
     display: "block",
   },
-
   title: {
     marginBottom: 18,
     fontWeight: 600,
     fontSize: 22,
   },
-
   input: {
     width: "92%",
     maxWidth: 380,
@@ -640,7 +896,6 @@ const styles = {
     boxSizing: "border-box",
     marginBottom: 12,
   },
-
   button: {
     width: "92%",
     maxWidth: 380,
@@ -653,19 +908,16 @@ const styles = {
     cursor: "pointer",
     marginTop: 8,
   },
-
   switchText: {
     marginTop: 18,
     color: "#6b7280",
     fontSize: 14,
   },
-
   switchLink: {
     color: "#0b5cff",
     cursor: "pointer",
     textDecoration: "underline",
   },
-
   criteria: {
     width: "92%",
     maxWidth: 380,
@@ -673,19 +925,16 @@ const styles = {
     marginBottom: 6,
     textAlign: "left",
   },
-
   message: {
     marginTop: 12,
     minHeight: 20,
     fontSize: 13,
   },
-
   footer: {
     borderTop: "1px solid rgba(0,0,0,0.04)",
     background: "#ffffff",
     padding: "12px 20px",
   },
-
   footerInner: {
     maxWidth: 980,
     margin: "0 auto",
@@ -696,7 +945,6 @@ const styles = {
     fontSize: 13,
     color: "#6b7280",
   },
-
   statusDot: {
     width: 10,
     height: 10,
@@ -704,17 +952,14 @@ const styles = {
     background: "#10b981",
     boxShadow: "0 0 6px rgba(16,185,129,0.18)",
   },
-
   statusText: {
     color: "#374151",
     fontSize: 13,
   },
-
   copy: {
     color: "#9ca3af",
     fontSize: 13,
   },
-
   loadingOverlay: {
     position: "fixed",
     inset: 0,
@@ -724,7 +969,6 @@ const styles = {
     background: "rgba(10,11,13,0.12)",
     zIndex: 9999,
   },
-
   spinner: {
     width: 56,
     height: 56,
@@ -734,12 +978,48 @@ const styles = {
     boxShadow: "0 6px 20px rgba(11,92,255,0.12)",
     animation: "spin 900ms linear infinite",
   },
+
+  /* === Apple-style checkbox === */
+  checkboxRow: {
+    width: "92%",
+    maxWidth: 380,
+    margin: "4px auto 4px auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    cursor: "pointer",
+    userSelect: "none",
+  },
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    backgroundColor: "#ffffff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+    transition: "all 0.15s ease",
+  },
+  checkboxBoxChecked: {
+    backgroundColor: "#0b5cff",
+    borderColor: "#0b5cff",
+    boxShadow: "0 0 0 1px rgba(11,92,255,0.18)",
+  },
+  checkboxLabel: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
 };
 
 /* ============================================================
    SPINNER KEYFRAMES INJECTION
    ============================================================ */
-if (typeof document !== "undefined" && !document.getElementById("auth-spinner-keyframes")) {
+if (
+  typeof document !== "undefined" &&
+  !document.getElementById("auth-spinner-keyframes")
+) {
   const style = document.createElement("style");
   style.id = "auth-spinner-keyframes";
   style.innerHTML = `
