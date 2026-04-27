@@ -1,27 +1,31 @@
-import { apiFetch } from "../utils/api";
-
 const API_URL = "http://52.201.21.208:3000/tasks";
 
 export async function getTasks() {
-    return apiFetch(API_URL);
+  const res = await fetch(API_URL);
+  return res.json();
 }
 
 export async function createTask(task) {
-    return apiFetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(task),
-    });
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task)
+  });
+  return res.json();
 }
 
 export async function updateTask(id, task) {
-    return apiFetch(`${API_URL}/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(task),
-    });
+  const res = await fetch(`${API_URL}/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task)
+  });
+  return res.json();
 }
 
 export async function deleteTask(id) {
-    return apiFetch(`${API_URL}/${id}`, {
-        method: "DELETE",
-    });
+  const res = await fetch(`${API_URL}/${id}`, {
+    method: "DELETE"
+  });
+  return res.json();
 }

@@ -16,57 +16,47 @@ import StudyPlaylists from "./pages/Music/StudyPlaylists";
 import Calendar from "./pages/Calendar/Calendar";
 
 import Auth from "./pages/LoginRegister/Auth";
-import VerifyAccount from "./pages/VerifyAccount/VerifyAccount";
-import VerifySuccess from "./pages/VerifySuccess/VerifySuccess";
-
-import { LoadingProvider } from "./context/LoadingContext";
+import Verify from "./pages/Verify/Verify";
+import VerifySuccess from "./pages/Verify/VerifySuccess";
+import ResetPassword from "./pages/Reset/ResetPassword";
 
 function App() {
-  return (
-    <LoadingProvider>
-      <Router>
-              <Routes>
+    return (
+        <Router>
 
-                  {/* Public routes */}
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/verify" element={<VerifyAccount />} />
-                  <Route path="/verify-success" element={<VerifySuccess />} />
+            {/* Public auth route (no layout, no sidebar) */}
+            <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/verify" element={<Verify />} />
+                <Route path="/verify-success" element={<VerifySuccess />} />
+                <Route path="/reset" element={<ResetPassword />} />
 
-                  {/* Protected routes */}
-                  <Route
-                      path="/"
-                      element={
-                          <RequireAuth>
-                              <Layout />
-                          </RequireAuth>
-                      }
-                  >
-                      <Route path="home" element={<h1>Welcome to Bucket Lyst</h1>} />
 
-                      <Route path="tasks" element={<Tasks />} />
-                      <Route path="tasks/today" element={<Today />} />
-                      <Route path="tasks/week" element={<ThisWeek />} />
-                      <Route path="tasks/high" element={<HighPriority />} />
-                      <Route path="tasks/completed" element={<Completed />} />
+            </Routes>
 
-                      <Route path="notes" element={<Notes />} />
-                      <Route path="notes/new" element={<NewNote />} />
+            {/* Protected app shell — everything inside Layout requires auth */}
+            <RequireAuth>
+                <Layout>
+                    <Routes>
+                        <Route path="/home" element={<h1>Welcome to Bucket Lyst</h1>} />
+                        <Route path="/tasks" element={<Tasks />} />
+                        <Route path="/notes" element={<Notes />} />
+                        <Route path="/assistant" element={<Assistant />} />
+                        <Route path="/music" element={<Music />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="/tasks/today" element={<Today />} />
+                        <Route path="/tasks/week" element={<ThisWeek />} />
+                        <Route path="/tasks/high" element={<HighPriority />} />
+                        <Route path="/tasks/completed" element={<Completed />} />
+                        <Route path="/notes/new" element={<NewNote />} />
+                        <Route path="/music/study" element={<StudyPlaylists />} />
+                        <Route path="/calendar" element={<Calendar />} />
+                    </Routes>
+                </Layout>
+            </RequireAuth>
 
-                      <Route path="assistant" element={<Assistant />} />
-
-                      <Route path="music" element={<Music />} />
-                      <Route path="music/study" element={<StudyPlaylists />} />
-
-                      <Route path="calendar" element={<Calendar />} />
-
-                      <Route path="settings" element={<Settings />} />
-                  </Route>
-
-              </Routes>
-
-      </Router>
-    </LoadingProvider>
-  );
+        </Router>
+    );
 }
 
 export default App;

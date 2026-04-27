@@ -55,7 +55,7 @@ function Tasks() {
       const history = updated.map(m => ({ role: m.role, content: m.content }));
 
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
-       method: "POST",
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`,
