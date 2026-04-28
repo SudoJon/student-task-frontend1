@@ -1,3 +1,4 @@
+// src/App.js
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout/Layout";
 import RequireAuth from "./components/Auth/RequireAuth";
@@ -23,38 +24,37 @@ import ResetPassword from "./pages/Reset/ResetPassword";
 function App() {
     return (
         <Router>
-
-            {/* Public auth route (no layout, no sidebar) */}
             <Routes>
+                {/* PUBLIC ROUTES */}
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/verify" element={<Verify />} />
                 <Route path="/verify-success" element={<VerifySuccess />} />
                 <Route path="/reset" element={<ResetPassword />} />
 
-
+                {/* PROTECTED ROUTES */}
+                <Route
+                    path="/"
+                    element={
+                        <RequireAuth>
+                            <Layout />
+                        </RequireAuth>
+                    }
+                >
+                    <Route path="home" element={<h1>Welcome to Bucket Lyst</h1>} />
+                    <Route path="tasks" element={<Tasks />} />
+                    <Route path="tasks/today" element={<Today />} />
+                    <Route path="tasks/week" element={<ThisWeek />} />
+                    <Route path="tasks/high" element={<HighPriority />} />
+                    <Route path="tasks/completed" element={<Completed />} />
+                    <Route path="notes" element={<Notes />} />
+                    <Route path="notes/new" element={<NewNote />} />
+                    <Route path="assistant" element={<Assistant />} />
+                    <Route path="music" element={<Music />} />
+                    <Route path="music/study" element={<StudyPlaylists />} />
+                    <Route path="calendar" element={<Calendar />} />
+                    <Route path="settings" element={<Settings />} />
+                </Route>
             </Routes>
-
-            {/* Protected app shell — everything inside Layout requires auth */}
-            <RequireAuth>
-                <Layout>
-                    <Routes>
-                        <Route path="/home" element={<h1>Welcome to Bucket Lyst</h1>} />
-                        <Route path="/tasks" element={<Tasks />} />
-                        <Route path="/notes" element={<Notes />} />
-                        <Route path="/assistant" element={<Assistant />} />
-                        <Route path="/music" element={<Music />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/tasks/today" element={<Today />} />
-                        <Route path="/tasks/week" element={<ThisWeek />} />
-                        <Route path="/tasks/high" element={<HighPriority />} />
-                        <Route path="/tasks/completed" element={<Completed />} />
-                        <Route path="/notes/new" element={<NewNote />} />
-                        <Route path="/music/study" element={<StudyPlaylists />} />
-                        <Route path="/calendar" element={<Calendar />} />
-                    </Routes>
-                </Layout>
-            </RequireAuth>
-
         </Router>
     );
 }
