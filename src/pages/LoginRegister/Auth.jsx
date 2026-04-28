@@ -150,12 +150,12 @@ export default function Auth() {
 
         user.authenticateUser(authDetails, {
             onSuccess: (session) => {
-                const accessToken = session.getAccessToken().getJwtToken();
+                const idToken = session.getIdToken().getJwtToken();
 
                 if (keepSignedIn) {
-                    localStorage.setItem("authToken", accessToken);
+                    localStorage.setItem("authToken", idToken);
                 } else {
-                    sessionStorage.setItem("authToken", accessToken);
+                    sessionStorage.setItem("authToken", idToken);
                 }
 
                 setLoading(false);

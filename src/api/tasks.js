@@ -1,27 +1,25 @@
 import { apiFetch } from "../utils/api";
 
-const API_URL = "http://52.201.21.208:3000/tasks";
-
 export function getTasks(query = "") {
-    return apiFetch(`${API_URL}${query}`);
+    return apiFetch(`/tasks${query}`);
 }
 
 export function createTask(task) {
-    return apiFetch(API_URL, {
+    return apiFetch("/tasks", {
         method: "POST",
         body: JSON.stringify(task),
     });
 }
 
 export function updateTask(id, task) {
-    return apiFetch(`${API_URL}/${id}`, {
+    return apiFetch(`/tasks/${id}`, {
         method: "PUT",
         body: JSON.stringify(task),
     });
 }
 
 export function deleteTask(id) {
-    return apiFetch(`${API_URL}/${id}`, {
+    return apiFetch(`/tasks/${id}`, {
         method: "DELETE",
     });
 }

@@ -1,3 +1,5 @@
+const API_BASE_URL = "http://52.201.21.208:3000";
+
 export function getAuthToken() {
     return (
         localStorage.getItem("authToken") ||
@@ -6,10 +8,9 @@ export function getAuthToken() {
     );
 }
 
-export async function apiFetch(url, options = {}) {
+export async function apiFetch(path, options = {}) {
     const token = getAuthToken();
 
-    /* ⭐ FIXED: Explicit Header assignment */
     const headers = {
         "Content-Type": "application/json",
         ...(options.headers || {}),
@@ -19,7 +20,7 @@ export async function apiFetch(url, options = {}) {
         headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
         ...options,
         headers,
     });
@@ -29,9 +30,7 @@ export async function apiFetch(url, options = {}) {
         try {
             const errorData = await response.json();
             errorMsg = errorData.error || errorData.message || errorMsg;
-        } catch (err) {
-            // Catch cases where the backend doesn't return JSON cleanly
-        }
+        } catch { }
         throw new Error(errorMsg);
     }
 
